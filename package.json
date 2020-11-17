@@ -1,0 +1,25 @@
+{
+  "name": "helpers",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RomanHiden/helpers.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RomanHiden/helpers/issues"
+  },
+  "homepage": "https://github.com/RomanHiden/helpers#readme",
+  "devDependencies": {
+    "@openzeppelin/contracts": "^3.2.0"
+  }
+}
