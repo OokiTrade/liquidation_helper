@@ -1,0 +1,6 @@
+bin/
+package-lock.json
+__pycache__
+build/
+.vscode/
+node_modules/
