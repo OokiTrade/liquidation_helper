@@ -170,7 +170,7 @@ contract BzxLiquidateV2 is Ownable {
             .liquidateWithGasToken(
             loanId,
             address(this),
-            address(this),
+            msg.sender,
             uint256(-1)
         );
         // .liquidate(loanId, address(this), uint256(-1));
