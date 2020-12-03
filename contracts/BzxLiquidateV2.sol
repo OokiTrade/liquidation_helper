@@ -85,7 +85,8 @@ contract BzxLiquidateV2 is Ownable {
         address loanToken,
         address collateralToken,
         uint256 maxLiquidatable,
-        address flashLoanToken
+        address flashLoanToken,
+        bool allowLoss
     ) internal returns (address, uint256) {
         // IBZx.LoanReturnData memory loan = BZX.getLoan(loanId);
 
@@ -99,12 +100,13 @@ contract BzxLiquidateV2 is Ownable {
             address(this),
             "",
             abi.encodeWithSignature(
-                "executeOperation(bytes32,address,address,uint256,address)",
+                "executeOperation(bytes32,address,address,uint256,address,bool)",
                 loanId,
                 loanToken,
                 collateralToken,
                 maxLiquidatable,
-                flashLoanToken
+                flashLoanToken,
+                allowLoss
             )
         );
 
@@ -128,7 +130,26 @@ contract BzxLiquidateV2 is Ownable {
                 loanToken,
                 collateralToken,
                 maxLiquidatable,
-                flashLoanToken
+                flashLoanToken,
+                false
+            );
+    }
+
+    function liquidateAllowLoss(
+        bytes32 loanId,
+        address loanToken,
+        address collateralToken,
+        uint256 maxLiquidatable,
+        address flashLoanToken
+    ) external onlyOwner returns (address, uint256) {
+        return
+            liquidateInternal(
+                loanId,
+                loanToken,
+                collateralToken,
+                maxLiquidatable,
+                flashLoanToken,
+                true
             );
     }
 
@@ -142,7 +163,8 @@ contract BzxLiquidateV2 is Ownable {
         address loanToken,
         address collateralToken,
         uint256 maxLiquidatable,
-        address iToken
+        address iToken,
+        bool allowLoss
     ) external returns (bytes memory) {
         (uint256 _liquidatedLoanAmount, uint256 _liquidatedCollateral, ) = BZX
             .liquidateWithGasToken(
@@ -153,19 +175,21 @@ contract BzxLiquidateV2 is Ownable {
         );
         // .liquidate(loanId, address(this), uint256(-1));
 
-        // unnecessary check
-        // require(_liquidatedCollateral > 0, "Liq is zero");
-
         uint256 _realLiquidatedLoanAmount = KYBER_PROXY.swapTokenToToken(
             IERC20(collateralToken),
             _liquidatedCollateral,
             IERC20(loanToken),
             0
         );
-        require(_realLiquidatedLoanAmount > _liquidatedLoanAmount, "no profit");
+        if (!allowLoss) {
+            require(
+                _realLiquidatedLoanAmount > _liquidatedLoanAmount,
+                "no profit"
+            );
+        }
 
         // repay flash loan
-        IERC20(loanToken).transfer(iToken, maxLiquidatable);
+        IERC20(loanToken).safeTransfer(iToken, maxLiquidatable);
 
         return
             abi.encode(
@@ -175,16 +199,20 @@ contract BzxLiquidateV2 is Ownable {
     }
 
     function withdrawIERC20(IERC20 token) public onlyOwner {
-        token.transfer(msg.sender, token.balanceOf(address(this)));
+        token.safeTransfer(msg.sender, token.balanceOf(address(this)));
     }
 
     function infiniteApproveIERC20(
-        IERC20 token,
-        address guy,
-        uint256 amount
+        IERC20[] calldata tokens
     ) public onlyOwner {
-        token.safeApprove(guy, amount); // amount avoids issue with some tokens maxallowance
-        // token.approve(guy, uint(-1));
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            tokens[i].safeApprove(address(BZX), 0);
+            tokens[i].safeApprove(address(BZX), uint256(-1));
+            
+            tokens[i].safeApprove(address(KYBER_PROXY), 0);
+            tokens[i].safeApprove(address(KYBER_PROXY), uint256(-1));
+        }
     }
 
     // function multiLiquidate(

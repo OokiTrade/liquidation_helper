@@ -113,6 +113,8 @@ interface IKyber {
     ) external view returns (uint256 expectedRate, uint256 slippageRate);
 }
 
+
+/// THIS CONTRACT IS DEPRECATED. keept for history purphoses
 contract BzxLiquidate is Ownable {
     using SafeERC20 for IERC20;
     IBZx public constant BZX = IBZx(
