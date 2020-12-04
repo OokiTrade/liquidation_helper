@@ -3,11 +3,9 @@ pragma experimental ABIEncoderV2;
 
 /// SPDX-License-Identifier: MIT
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-// import "@openzeppelin/contracts/proxy/UpgradeableProxy.sol";
 
 interface IBZx {
     /// @dev liquidates unhealty loans by using Gas token
@@ -61,8 +59,9 @@ interface IKeep3rV1 {
 contract BzxLiquidateV2 is Ownable {
     using SafeERC20 for IERC20;
     IBZx public constant BZX = IBZx(
-        address(0xD8Ee69652E4e4838f2531732a46d1f7F584F0b7f)
+        0xD8Ee69652E4e4838f2531732a46d1f7F584F0b7f
     );
+
     IKyber public constant KYBER_PROXY = IKyber(
         0x9AAb3f75489902f3a48495025729a0AF77d4b11e
     );
@@ -207,10 +206,14 @@ contract BzxLiquidateV2 is Ownable {
     ) public onlyOwner {
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            tokens[i].safeApprove(address(BZX), 0);
+            if (tokens[i].allowance(address(this), address(BZX)) != 0) {
+                tokens[i].safeApprove(address(BZX), 0);
+            }
             tokens[i].safeApprove(address(BZX), uint256(-1));
             
-            tokens[i].safeApprove(address(KYBER_PROXY), 0);
+            if (tokens[i].allowance(address(this), address(KYBER_PROXY)) != 0) {
+                tokens[i].safeApprove(address(KYBER_PROXY), 0);
+            }
             tokens[i].safeApprove(address(KYBER_PROXY), uint256(-1));
         }
     }
