@@ -56,6 +56,11 @@ interface IKeep3rV1 {
     function worked(address keeper) external;
 }
 
+interface IWeth {
+    function deposit() external payable;
+    function withdraw(uint256 wad) external;
+}
+
 contract BzxLiquidateV2 is Ownable {
     using SafeERC20 for IERC20;
     IBZx public constant BZX = IBZx(
@@ -70,6 +75,10 @@ contract BzxLiquidateV2 is Ownable {
         0x1cEB5cB57C4D4E2b2433641b95Dd330A33185A44
     );
 
+    IWeth public constant WETH = IWeth(
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+    );
+
     modifier upkeep() {
         require(
             KP3R.isKeeper(msg.sender),
@@ -78,6 +87,9 @@ contract BzxLiquidateV2 is Ownable {
         _;
         KP3R.worked(msg.sender);
     }
+
+    fallback() external payable {}
+    receive() external payable {}
 
     function liquidateInternal(
         bytes32 loanId,
@@ -174,6 +186,10 @@ contract BzxLiquidateV2 is Ownable {
         );
         // .liquidate(loanId, address(this), uint256(-1));
 
+        if (collateralToken == address(WETH) && address(this).balance != 0) {
+            WETH.deposit.value(address(this).balance)();
+        }
+
         uint256 _realLiquidatedLoanAmount = KYBER_PROXY.swapTokenToToken(
             IERC20(collateralToken),
             _liquidatedCollateral,
@@ -195,6 +211,12 @@ contract BzxLiquidateV2 is Ownable {
                 loanToken,
                 uint256(_realLiquidatedLoanAmount - _liquidatedLoanAmount)
             );
+    }
+
+    function wrapEther() public onlyOwner {
+        if (address(this).balance != 0) {
+            WETH.deposit.value(address(this).balance)();
+        }
     }
 
     function withdrawIERC20(IERC20 token) public onlyOwner {
