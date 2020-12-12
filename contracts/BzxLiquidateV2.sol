@@ -6,7 +6,6 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-
 interface IBZx {
     /// @dev liquidates unhealty loans by using Gas token
     /// @param loanId id of the loan
@@ -58,14 +57,13 @@ interface IKeep3rV1 {
 
 interface IWeth {
     function deposit() external payable;
+
     function withdraw(uint256 wad) external;
 }
 
 contract BzxLiquidateV2 is Ownable {
     using SafeERC20 for IERC20;
-    IBZx public constant BZX = IBZx(
-        0xD8Ee69652E4e4838f2531732a46d1f7F584F0b7f
-    );
+    IBZx public constant BZX = IBZx(0xD8Ee69652E4e4838f2531732a46d1f7F584F0b7f);
 
     IKyber public constant KYBER_PROXY = IKyber(
         0x9AAb3f75489902f3a48495025729a0AF77d4b11e
@@ -89,6 +87,7 @@ contract BzxLiquidateV2 is Ownable {
     }
 
     fallback() external payable {}
+
     receive() external payable {}
 
     function liquidateInternal(
@@ -111,13 +110,14 @@ contract BzxLiquidateV2 is Ownable {
             address(this),
             "",
             abi.encodeWithSignature(
-                "executeOperation(bytes32,address,address,uint256,address,bool)",
+                "executeOperation(bytes32,address,address,uint256,address,bool,address)",
                 loanId,
                 loanToken,
                 collateralToken,
                 maxLiquidatable,
                 flashLoanToken,
-                allowLoss
+                allowLoss,
+                msg.sender
             )
         );
 
@@ -175,19 +175,20 @@ contract BzxLiquidateV2 is Ownable {
         address collateralToken,
         uint256 maxLiquidatable,
         address iToken,
-        bool allowLoss
+        bool allowLoss,
+        address gasTokenUser
     ) external returns (bytes memory) {
         (uint256 _liquidatedLoanAmount, uint256 _liquidatedCollateral, ) = BZX
             .liquidateWithGasToken(
             loanId,
             address(this),
-            msg.sender,
+            gasTokenUser,
             uint256(-1)
         );
         // .liquidate(loanId, address(this), uint256(-1));
 
         if (collateralToken == address(WETH) && address(this).balance != 0) {
-            WETH.deposit.value(address(this).balance)();
+            WETH.deposit{value: address(this).balance}();
         }
 
         uint256 _realLiquidatedLoanAmount = KYBER_PROXY.swapTokenToToken(
@@ -215,7 +216,7 @@ contract BzxLiquidateV2 is Ownable {
 
     function wrapEther() public onlyOwner {
         if (address(this).balance != 0) {
-            WETH.deposit.value(address(this).balance)();
+            WETH.deposit{value: address(this).balance}();
         }
     }
 
@@ -223,16 +224,13 @@ contract BzxLiquidateV2 is Ownable {
         token.safeTransfer(msg.sender, token.balanceOf(address(this)));
     }
 
-    function infiniteApproveIERC20(
-        IERC20[] calldata tokens
-    ) public onlyOwner {
-
+    function infiniteApproveIERC20(IERC20[] calldata tokens) public onlyOwner {
         for (uint256 i = 0; i < tokens.length; i++) {
             if (tokens[i].allowance(address(this), address(BZX)) != 0) {
                 tokens[i].safeApprove(address(BZX), 0);
             }
             tokens[i].safeApprove(address(BZX), uint256(-1));
-            
+
             if (tokens[i].allowance(address(this), address(KYBER_PROXY)) != 0) {
                 tokens[i].safeApprove(address(KYBER_PROXY), 0);
             }
