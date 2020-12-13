@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 interface IBZx {
     /// @dev liquidates unhealty loans by using Gas token
@@ -28,6 +29,50 @@ interface IBZx {
             uint256 seizedAmount,
             address seizedToken
         );
+
+    /// @dev get current active loans in the system
+    /// @param start of the index
+    /// @param count number of loans to return
+    /// @param unsafeOnly boolean if true return unsafe loan only (open for liquidation)
+    function getActiveLoans(
+        uint256 start,
+        uint256 count,
+        bool unsafeOnly
+    ) external view returns (LoanReturnData[] memory loansData);
+
+    function getActiveLoansCount() external view returns (uint256);
+
+    /// @dev gets existing loan
+    /// @param loanId id of existing loan
+    /// @return loanData array of loans
+    function getLoan(bytes32 loanId)
+        external
+        view
+        returns (LoanReturnData memory loanData);
+
+    function underlyingToLoanPool(address underlying)
+        external
+        returns (address loanPool);
+
+    struct LoanReturnData {
+        bytes32 loanId; // id of the loan
+        uint96 endTimestamp; // loan end timestamp
+        address loanToken; // loan token address
+        address collateralToken; // collateral token address
+        uint256 principal; // principal amount of the loan
+        uint256 collateral; // collateral amount of the loan
+        uint256 interestOwedPerDay; // interest owned per day
+        uint256 interestDepositRemaining; // remaining unspent interest
+        uint256 startRate; // collateralToLoanRate
+        uint256 startMargin; // margin with which loan was open
+        uint256 maintenanceMargin; // maintenance margin
+        uint256 currentMargin; // current margin
+        uint256 maxLoanTerm; // maximum term of the loan
+        uint256 maxLiquidatable; // is the collateral you can get liquidating
+        uint256 maxSeizable; // is the loan you available for liquidation
+        uint256 depositValue; // value of loan opening deposit
+        uint256 withdrawalValue; // value of loan closing withdrawal
+    }
 }
 
 interface IToken {
@@ -47,6 +92,12 @@ interface IKyber {
         IERC20 dest,
         uint256 minConversionRate
     ) external returns (uint256);
+
+    function getExpectedRate(
+        IERC20 src,
+        IERC20 dest,
+        uint256 srcQty
+    ) external view returns (uint256 expectedRate, uint256 slippageRate);
 }
 
 interface IKeep3rV1 {
@@ -146,6 +197,24 @@ contract BzxLiquidateV2 is Ownable {
             );
     }
 
+    function liquidatePublic(
+        bytes32 loanId,
+        address loanToken,
+        address collateralToken,
+        uint256 maxLiquidatable,
+        address flashLoanToken
+    ) external returns (address, uint256) {
+        return
+            liquidateInternal(
+                loanId,
+                loanToken,
+                collateralToken,
+                maxLiquidatable,
+                flashLoanToken,
+                false
+            );
+    }
+
     function liquidateAllowLoss(
         bytes32 loanId,
         address loanToken,
@@ -163,11 +232,6 @@ contract BzxLiquidateV2 is Ownable {
                 true
             );
     }
-
-    // event Logger(string name, uint256 amount);
-
-    // event LoggerAddress(string name, address logAddress);
-    // event LoggerBytes(string name, bytes logBytes);
 
     function executeOperation(
         bytes32 loanId,
@@ -236,6 +300,74 @@ contract BzxLiquidateV2 is Ownable {
             }
             tokens[i].safeApprove(address(KYBER_PROXY), uint256(-1));
         }
+    }
+
+    function canExecute() public view returns (bool) {
+        return getLiquidatableLoans().length > 0;
+    }
+
+    function execute() external {
+        bytes32[] memory loanIds = getLiquidatableLoans();
+        require(loanIds.length > 0, "Cannot execute");
+
+        // liquidation uses approximately 1.6m gas lets round to 2m. current ethereum gasLimit ~12.5m
+        uint256 numberOfLiquidaitonsFitInBlock = 6;
+        if (loanIds.length < numberOfLiquidaitonsFitInBlock) {
+            numberOfLiquidaitonsFitInBlock = loanIds.length;
+        }
+        for (uint256 i = 0; i < numberOfLiquidaitonsFitInBlock; i++) {
+            IBZx.LoanReturnData memory loan = BZX.getLoan(loanIds[0]);
+            // solhint-disable-next-line
+            address(this).call(
+                abi.encodeWithSignature(
+                    "liquidatePublic(bytes32,address,address,uint256,address)",
+                    loan.loanId,
+                    loan.loanToken,
+                    loan.collateralToken,
+                    loan.maxLiquidatable,
+                    BZX.underlyingToLoanPool(loan.loanToken)
+                )
+            );
+        }
+    }
+
+    function getLiquidatableLoans()
+        public
+        view
+        returns (bytes32[] memory liquidatableLoans)
+    {
+        IBZx.LoanReturnData[] memory loans;
+        // loansCount = bzx.getActiveLoansCount()
+        loans = BZX.getActiveLoans(0, 500, true);
+        for (uint256 i = 0; i < loans.length; i++) {
+            if (
+                isProfitalbe(
+                    loans[i].loanToken,
+                    loans[i].collateralToken,
+                    loans[i].maxLiquidatable,
+                    loans[i].maxSeizable
+                )
+            ) {
+                liquidatableLoans[i] = loans[i].loanId;
+            }
+        }
+    }
+
+    function isProfitalbe(
+        address loanToken,
+        address collateralToken,
+        uint256 maxLiquidatable,
+        uint256 maxSeizable
+    ) public view returns (bool) {
+        (uint256 rate, ) = KYBER_PROXY.getExpectedRate(
+            IERC20(collateralToken),
+            IERC20(loanToken),
+            maxLiquidatable
+        );
+        return
+            (rate * maxLiquidatable) /
+                10**uint256(ERC20(collateralToken).decimals()) >
+            maxSeizable;
     }
 
     // function multiLiquidate(
