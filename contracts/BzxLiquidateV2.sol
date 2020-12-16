@@ -351,12 +351,13 @@ contract BzxLiquidateV2 is Ownable {
             // solhint-disable-next-line
             address(this).call(
                 abi.encodeWithSignature(
-                    "liquidatePublic(bytes32,address,address,uint256,address)",
+                    "liquidateCheckBeforeExecuting(bytes32,address,address,uint256,address,bool)",
                     loan.loanId,
                     loan.loanToken,
                     loan.collateralToken,
                     loan.maxLiquidatable,
-                    BZX.underlyingToLoanPool(loan.loanToken)
+                    BZX.underlyingToLoanPool(loan.loanToken),
+                    true
                 )
             );
         }
