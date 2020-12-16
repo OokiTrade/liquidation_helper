@@ -147,9 +147,17 @@ contract BzxLiquidateV2 is Ownable {
         address collateralToken,
         uint256 maxLiquidatable,
         address flashLoanToken,
-        bool allowLoss
+        bool allowLoss,
+        bool checkBeforeExecuting
     ) internal returns (address, uint256) {
-        // IBZx.LoanReturnData memory loan = BZX.getLoan(loanId);
+        if (checkBeforeExecuting) {
+            IBZx.LoanReturnData memory loan = BZX.getLoan(loanId);
+            require(
+                loan.maxLiquidatable > 0 && loan.maxSeizable > 0,
+                "healty loan"
+            );
+        }
+        //
 
         // require(maxLiquidatable != 0, "healty loan");
 
@@ -193,7 +201,27 @@ contract BzxLiquidateV2 is Ownable {
                 collateralToken,
                 maxLiquidatable,
                 flashLoanToken,
+                false,
                 false
+            );
+    }
+
+    function liquidateCheckBeforeExecuting(
+        bytes32 loanId,
+        address loanToken,
+        address collateralToken,
+        uint256 maxLiquidatable,
+        address flashLoanToken
+    ) external upkeep returns (address, uint256) {
+        return
+            liquidateInternal(
+                loanId,
+                loanToken,
+                collateralToken,
+                maxLiquidatable,
+                flashLoanToken,
+                false,
+                true
             );
     }
 
@@ -211,6 +239,7 @@ contract BzxLiquidateV2 is Ownable {
                 collateralToken,
                 maxLiquidatable,
                 flashLoanToken,
+                false,
                 false
             );
     }
@@ -220,7 +249,8 @@ contract BzxLiquidateV2 is Ownable {
         address loanToken,
         address collateralToken,
         uint256 maxLiquidatable,
-        address flashLoanToken
+        address flashLoanToken,
+        bool checkBeforeExecuting
     ) external onlyOwner returns (address, uint256) {
         return
             liquidateInternal(
@@ -229,7 +259,8 @@ contract BzxLiquidateV2 is Ownable {
                 collateralToken,
                 maxLiquidatable,
                 flashLoanToken,
-                true
+                true,
+                checkBeforeExecuting
             );
     }
 
