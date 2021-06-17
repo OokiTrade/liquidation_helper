@@ -20,7 +20,8 @@ def test_liquidation():
 
     loan = bzx.getLoan("0x0e4be352345ecb788fe348e55d313d7ef821f14ec16e22a2e7a864e01dd364fd")    
     KYBER_PROXY.swapEtherToToken("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", 0, {'value': Wei("2 ether")})
-    
+    # liq = Contract.from_abi("liq", address="0x95603Fb36A68DE816c47078979f41FE65CCA02da", abi=BzxLiquidate.abi, owner=accounts[0]) # this is v1
+    # liqV0 0x95603Fb36A68DE816c47078979f41FE65CCA02da non upgradable
     liq = accounts[0].deploy(BzxLiquidateV2)
     
     # WETH.transfer(liq, Wei("2 ether"), {'from': accounts[0]})
