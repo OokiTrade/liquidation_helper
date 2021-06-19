@@ -16,8 +16,7 @@ import "../interfaces/KeeperCompatibleInterface.sol";
 
 contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
     using SafeERC20 for IERC20;
-    // IBZx public constant BZX = IBZx(0xD8Ee69652E4e4838f2531732a46d1f7F584F0b7f);
-    IBZx public constant BZX = IBZx(0x5cfba2639a3db0D9Cc264Aa27B2E6d134EeA486a);
+    IBZx public constant BZX = IBZx(0xD8Ee69652E4e4838f2531732a46d1f7F584F0b7f);
 
     IKyber public constant KYBER_PROXY =
         IKyber(0x9AAb3f75489902f3a48495025729a0AF77d4b11e);
@@ -173,23 +172,23 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
         if (collateralToken == address(WETH) && address(this).balance != 0) {
             WETH.deposit{value: address(this).balance}();
         }
-        //  TODO this is testned
-        (uint256 _realLiquidatedLoanAmount,) = ISwapsImpl(BZX.swapsImpl()).dexSwap(
-            collateralToken,
-            loanToken,
-            address(this),
-            address(this),
-            _liquidatedCollateral,
-            _liquidatedCollateral,
-            0
-        );
-        // uint256 _realLiquidatedLoanAmount =
-        //     KYBER_PROXY.swapTokenToToken(
-        //         IERC20(collateralToken),
-        //         _liquidatedCollateral,
-        //         IERC20(loanToken),
-        //         0
-        //     );
+        // his is testnet
+        // (uint256 _realLiquidatedLoanAmount,) = ISwapsImpl(BZX.swapsImpl()).dexSwap(
+        //     collateralToken,
+        //     loanToken,
+        //     address(this),
+        //     address(this),
+        //     _liquidatedCollateral,
+        //     _liquidatedCollateral,
+        //     0
+        // );
+        uint256 _realLiquidatedLoanAmount =
+            KYBER_PROXY.swapTokenToToken(
+                IERC20(collateralToken),
+                _liquidatedCollateral,
+                IERC20(loanToken),
+                0
+            );
 
         if (!allowLoss) {
             require(
@@ -279,17 +278,16 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
         uint256 maxLiquidatable,
         uint256 maxSeizable
     ) public view returns (bool) {
-        // (uint256 rate, ) =
-        //     KYBER_PROXY.getExpectedRate(
-        //         IERC20(collateralToken),
-        //         IERC20(loanToken),
-        //         maxLiquidatable
-        //     );
-        // return
-        //     (rate * maxLiquidatable) /
-        //         10**uint256(ERC20(collateralToken).decimals()) >
-        //     maxSeizable;
-        return true; // TODO for the sake of testing above is commented
+        (uint256 rate, ) =
+            KYBER_PROXY.getExpectedRate(
+                IERC20(collateralToken),
+                IERC20(loanToken),
+                maxLiquidatable
+            );
+        return
+            (rate * maxLiquidatable) /
+                10**uint256(ERC20(collateralToken).decimals()) >
+            maxSeizable;
     }
 
 
@@ -297,11 +295,13 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
         external override
         returns (bool upkeepNeeded, bytes memory performData)
     {
-        return (getLiquidatableLoans().length > 0, performData);
+        bytes32 [] memory liquidatableLoans = getLiquidatableLoans();
+        
+        return (liquidatableLoans.length > 0, abi.encodePacked(liquidatableLoans));
     }
 
     function performUpkeep(bytes calldata performData) external override {
-        bytes32[] memory loanIds = getLiquidatableLoans();
+        bytes32[] memory loanIds = abi.decode(performData, (bytes32[]));
         require(loanIds.length > 0, "Cannot execute");
 
         // liquidation uses approximately 1.6m gas lets round to 2m. current ethereum gasLimit ~12.5m
