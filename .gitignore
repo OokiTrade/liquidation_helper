@@ -4,3 +4,5 @@ __pycache__
 build/
 .vscode/
 node_modules/
+*_ignore_*
+*_joined_*
