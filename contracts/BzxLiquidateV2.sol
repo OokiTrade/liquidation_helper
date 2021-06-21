@@ -230,22 +230,24 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
             tokens[i].safeApprove(address(KYBER_PROXY), uint256(-1));
         }
     }
-
-    function infiniteApproveLinkRegistry() public onlyOwner {
-        IERC20 token = ERC20(0xa36085F69e2889c224210F603D836748e7dC0088);
+    // chainlink registry mainnet 0x109A81F1E0A35D4c1D0cae8aCc6597cd54b47Bc6
+    // chainlink registry kovan 0xAaaD7966EBE0663b8C9C6f683FB9c3e66E03467F
+    // link token mainnet 0x514910771AF9Ca656af840dff83E8264EcF986CA
+    // link token kovan 0xa36085F69e2889c224210F603D836748e7dC0088
+    function infiniteApproveLinkRegistry(address registry, IERC20 token) public onlyOwner {
         if (
             token.allowance(
                 address(this),
-                address(0xAaaD7966EBE0663b8C9C6f683FB9c3e66E03467F)
+                registry
             ) != 0
         ) {
             token.safeApprove(
-                address(0xAaaD7966EBE0663b8C9C6f683FB9c3e66E03467F),
+                registry,
                 0
             );
         }
         token.safeApprove(
-            address(0xAaaD7966EBE0663b8C9C6f683FB9c3e66E03467F),
+            registry,
             uint256(-1)
         );
     }
