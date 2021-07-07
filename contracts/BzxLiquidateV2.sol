@@ -282,18 +282,18 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
         // }
     }
 
-    function isProfitalbe(IBZx.LoanReturnData memory loan)
-        public
-        pure
-        returns (bool)
-    {
-        return
-            loan.currentMargin > 0 &&
-            loan.principal > 0 &&
-            loan.collateral > 0 &&
-            loan.maxLiquidatable > 0 &&
-            loan.maxSeizable > 0;
-    }
+    // function isProfitalbe(IBZx.LoanReturnData memory loan)
+    //     public
+    //     pure
+    //     returns (bool)
+    // {
+    //     return
+    //         loan.currentMargin > 0 &&
+    //         loan.principal > 0 &&
+    //         loan.collateral > 0 &&
+    //         loan.maxLiquidatable > 0 &&
+    //         loan.maxSeizable > 0;
+    // }
 
     function checkUpkeep(bytes calldata checkData)
         external
