@@ -260,29 +260,26 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
 
     function getLiquidatableLoans(uint256 start, uint256 count)
         public
+        view
         returns (LoanReturnDataMinimal[] memory liquidatableLoans)
     {
         IBZx.LoanReturnData[] memory loans;
-        loans = BZX.getActiveLoans(start, count, true);
+        loans = BZX.getActiveLoansAdvanced(start, count, true, true);
         liquidatableLoans = new LoanReturnDataMinimal[](loans.length);
-        uint256 counter;
-        for (uint256 i = 0; i < loans.length; i++) {
-            if (isProfitalbe(loans[i])) {
-                liquidatableLoans[counter] = LoanReturnDataMinimal(
-                    loans[i].loanId,
-                    loans[i].loanToken,
-                    loans[i].collateralToken,
-                    loans[i].maxLiquidatable,
-                    loans[i].maxSeizable,
-                    BZX.underlyingToLoanPool(loans[i].loanToken)
-                );
 
-                counter++;
-            }
+        for (uint256 i = 0; i < loans.length; i++) {
+            liquidatableLoans[i] = LoanReturnDataMinimal(
+                loans[i].loanId,
+                loans[i].loanToken,
+                loans[i].collateralToken,
+                loans[i].maxLiquidatable,
+                loans[i].maxSeizable,
+                BZX.underlyingToLoanPool(loans[i].loanToken)
+            );
         }
-        assembly {
-            mstore(liquidatableLoans, counter)
-        }
+        // assembly {
+        //     mstore(liquidatableLoans, counter)
+        // }
     }
 
     function isProfitalbe(IBZx.LoanReturnData memory loan)
