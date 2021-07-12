@@ -57,26 +57,27 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
             );
         }
 
-        bytes memory b =
-            IToken(flashLoanToken).flashBorrow(
+        bytes memory b = IToken(flashLoanToken).flashBorrow(
+            maxLiquidatable,
+            address(this),
+            address(this),
+            "",
+            abi.encodeWithSelector(
+                this.executeOperation.selector, //"executeOperation(bytes32,address,address,uint256,address,bool,address)",
+                loanId,
+                loanToken,
+                collateralToken,
                 maxLiquidatable,
-                address(this),
-                address(this),
-                "",
-                abi.encodeWithSignature(
-                    "executeOperation(bytes32,address,address,uint256,address,bool,address)",
-                    loanId,
-                    loanToken,
-                    collateralToken,
-                    maxLiquidatable,
-                    flashLoanToken,
-                    allowLoss,
-                    msg.sender
-                )
-            );
+                flashLoanToken,
+                allowLoss,
+                msg.sender
+            )
+        );
 
-        (, , , uint256 profitAmount) =
-            abi.decode(b, (uint256, uint256, address, uint256));
+        (, , , uint256 profitAmount) = abi.decode(
+            b,
+            (uint256, uint256, address, uint256)
+        );
         return (loanToken, profitAmount);
     }
 
@@ -166,8 +167,8 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
         bool allowLoss,
         address gasTokenUser
     ) external returns (bytes memory) {
-        (uint256 _liquidatedLoanAmount, uint256 _liquidatedCollateral, ) =
-            BZX.liquidate(loanId, address(this), uint256(-1));
+        (uint256 _liquidatedLoanAmount, uint256 _liquidatedCollateral, ) = BZX
+        .liquidate(loanId, address(this), uint256(-1));
 
         if (collateralToken == address(WETH) && address(this).balance != 0) {
             WETH.deposit{value: address(this).balance}();
@@ -182,13 +183,12 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
         //     _liquidatedCollateral,
         //     0
         // );
-        uint256 _realLiquidatedLoanAmount =
-            KYBER_PROXY.swapTokenToToken(
-                IERC20(collateralToken),
-                _liquidatedCollateral,
-                IERC20(loanToken),
-                0
-            );
+        uint256 _realLiquidatedLoanAmount = KYBER_PROXY.swapTokenToToken(
+            IERC20(collateralToken),
+            _liquidatedCollateral,
+            IERC20(loanToken),
+            0
+        );
 
         if (!allowLoss) {
             require(
@@ -230,101 +230,115 @@ contract BzxLiquidateV2 is Ownable, KeeperCompatibleInterface {
             tokens[i].safeApprove(address(KYBER_PROXY), uint256(-1));
         }
     }
+
     // chainlink registry mainnet 0x109A81F1E0A35D4c1D0cae8aCc6597cd54b47Bc6
     // chainlink registry kovan 0xAaaD7966EBE0663b8C9C6f683FB9c3e66E03467F
     // link token mainnet 0x514910771AF9Ca656af840dff83E8264EcF986CA
     // link token kovan 0xa36085F69e2889c224210F603D836748e7dC0088
-    function infiniteApproveLinkRegistry(address registry, IERC20 token) public onlyOwner {
-        if (
-            token.allowance(
-                address(this),
-                registry
-            ) != 0
-        ) {
-            token.safeApprove(
-                registry,
-                0
-            );
+    function infiniteApproveLinkRegistry(address registry, IERC20 token)
+        public
+        onlyOwner
+    {
+        if (token.allowance(address(this), registry) != 0) {
+            token.safeApprove(registry, 0);
         }
-        token.safeApprove(
-            registry,
-            uint256(-1)
-        );
+        token.safeApprove(registry, uint256(-1));
     }
 
-    function getLiquidatableLoans()
+    // event Logger(string name, uint256 value);
+    // event LoggerAddress(string name, address value);
+    // event LoggerBytes32(string name, bytes32 value);
+
+    struct LoanReturnDataMinimal {
+        bytes32 loanId; // id of the loan
+        address loanToken; // loan token address
+        address collateralToken; // collateral token address
+        uint256 maxLiquidatable; // is the collateral you can get liquidating
+        uint256 maxSeizable; // is the loan you available for liquidation
+        address iToken; // iToken for liquidation
+    }
+
+    function getLiquidatableLoans(uint256 start, uint256 count)
         public
         view
-        returns (bytes32[] memory liquidatableLoans)
+        returns (LoanReturnDataMinimal[] memory liquidatableLoans)
     {
         IBZx.LoanReturnData[] memory loans;
-        loans = BZX.getActiveLoans(0, 500, true);
-        liquidatableLoans = new bytes32[](loans.length);
+        loans = BZX.getActiveLoansAdvanced(start, count, true, true);
+        liquidatableLoans = new LoanReturnDataMinimal[](loans.length);
+
         for (uint256 i = 0; i < loans.length; i++) {
-            if (
-                isProfitalbe(
-                    loans[i].loanToken,
-                    loans[i].collateralToken,
-                    loans[i].maxLiquidatable,
-                    loans[i].maxSeizable
-                )
-            ) {
-                liquidatableLoans[i] = loans[i].loanId;
-            }
-        }
-    }
-
-    function isProfitalbe(
-        address loanToken,
-        address collateralToken,
-        uint256 maxLiquidatable,
-        uint256 maxSeizable
-    ) public view returns (bool) {
-        (uint256 rate, ) =
-            KYBER_PROXY.getExpectedRate(
-                IERC20(collateralToken),
-                IERC20(loanToken),
-                maxLiquidatable
+            liquidatableLoans[i] = LoanReturnDataMinimal(
+                loans[i].loanId,
+                loans[i].loanToken,
+                loans[i].collateralToken,
+                loans[i].maxLiquidatable,
+                loans[i].maxSeizable,
+                BZX.underlyingToLoanPool(loans[i].loanToken)
             );
-        return
-            (rate * maxLiquidatable) /
-                10**uint256(ERC20(collateralToken).decimals()) >
-            maxSeizable;
+        }
+        // assembly {
+        //     mstore(liquidatableLoans, counter)
+        // }
     }
 
+    // function isProfitalbe(IBZx.LoanReturnData memory loan)
+    //     public
+    //     pure
+    //     returns (bool)
+    // {
+    //     return
+    //         loan.currentMargin > 0 &&
+    //         loan.principal > 0 &&
+    //         loan.collateral > 0 &&
+    //         loan.maxLiquidatable > 0 &&
+    //         loan.maxSeizable > 0;
+    // }
 
     function checkUpkeep(bytes calldata checkData)
-        external override
+        external
+        override
         returns (bool upkeepNeeded, bytes memory performData)
     {
-        bytes32 [] memory liquidatableLoans = getLiquidatableLoans();
-        
-        return (liquidatableLoans.length > 0, abi.encodePacked(liquidatableLoans));
+        (uint256 start, uint256 count) = abi.decode(
+            checkData,
+            (uint256, uint256)
+        );
+        LoanReturnDataMinimal[] memory liquidatableLoans = getLiquidatableLoans(
+            start,
+            count
+        );
+
+        return (liquidatableLoans.length > 0, abi.encode(liquidatableLoans));
+    }
+
+    function encode(uint256 start, uint256 count)
+        external
+        pure
+        returns (bytes memory checkData)
+    {
+        return abi.encode(start, count);
     }
 
     function performUpkeep(bytes calldata performData) external override {
-        bytes32[] memory loanIds = abi.decode(performData, (bytes32[]));
-        require(loanIds.length > 0, "Cannot execute");
+        LoanReturnDataMinimal[] memory loans = abi.decode(
+            performData,
+            (LoanReturnDataMinimal[])
+        );
+        require(loans.length > 0, "Cannot execute");
 
         // liquidation uses approximately 1.6m gas lets round to 2m. current ethereum gasLimit ~12.5m
-        uint256 numberOfLiquidaitonsFitInBlock = 6;
-        if (loanIds.length < numberOfLiquidaitonsFitInBlock) {
-            numberOfLiquidaitonsFitInBlock = loanIds.length;
-        }
-        for (uint256 i = 0; i < numberOfLiquidaitonsFitInBlock; i++) {
-            IBZx.LoanReturnData memory loan = BZX.getLoan(loanIds[0]);
-            // solhint-disable-next-line
-            address(this).call(
-                abi.encodeWithSignature(
-                    "liquidateCheckBeforeExecuting(bytes32,address,address,uint256,address,bool)",
-                    loan.loanId,
-                    loan.loanToken,
-                    loan.collateralToken,
-                    loan.maxLiquidatable,
-                    BZX.underlyingToLoanPool(loan.loanToken),
-                    true
-                )
-            );
-        }
+        // we agreed to liquidate just one in single performUpkeep call
+        address(this).call(
+            abi.encodeWithSelector(
+                this.liquidatePublic.selector,
+                loans[1].loanId,
+                loans[1].loanToken,
+                loans[1].collateralToken,
+                loans[1].maxLiquidatable,
+                loans[1].iToken
+            )
+        );
+        
     }
 }
