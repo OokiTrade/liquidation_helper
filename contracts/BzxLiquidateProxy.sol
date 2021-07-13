@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 
+// mainnet: 0xB59A6dCE95bc446aD098B4C4b415bbe766068cb8
 contract BzxLiquidateProxy is Ownable {
 
     address public implementation;
