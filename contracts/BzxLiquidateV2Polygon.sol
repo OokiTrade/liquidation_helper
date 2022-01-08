@@ -19,8 +19,6 @@ contract BzxLiquidateV2Polygon is Ownable, KeeperCompatibleInterface {
 
     IPancakeRouter02 public constant ROUTER =
         IPancakeRouter02(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506); // SUSHI Router
-    // IKyber public constant KYBER_PROXY =
-    //     IKyber(0x9AAb3f75489902f3a48495025729a0AF77d4b11e);
 
     IWeth public constant WETH =
         IWeth(0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270); // WMATIC
@@ -126,7 +124,7 @@ contract BzxLiquidateV2Polygon is Ownable, KeeperCompatibleInterface {
             wrapEther();
         }
 
-        // his is testnet
+        // TODO in the future might be prefered way
         // (uint256 _realLiquidatedLoanAmount,) = ISwapsImpl(BZX.swapsImpl()).dexSwap(
         //     collateralToken,
         //     loanToken,
@@ -136,12 +134,7 @@ contract BzxLiquidateV2Polygon is Ownable, KeeperCompatibleInterface {
         //     _liquidatedCollateral,
         //     0
         // );
-        // uint256 _realLiquidatedLoanAmount = KYBER_PROXY.swapTokenToToken(
-        //     IERC20(collateralToken),
-        //     _liquidatedCollateral,
-        //     IERC20(loanToken),
-        //     0
-        // );
+
 
         // I believe this is the most optimal static route
         address[] memory path = new address[](3);
@@ -230,23 +223,8 @@ contract BzxLiquidateV2Polygon is Ownable, KeeperCompatibleInterface {
                 BZX.underlyingToLoanPool(loans[i].loanToken)
             );
         }
-        // assembly {
-        //     mstore(liquidatableLoans, counter)
-        // }
     }
 
-    // function isProfitalbe(IBZx.LoanReturnData memory loan)
-    //     public
-    //     pure
-    //     returns (bool)
-    // {
-    //     return
-    //         loan.currentMargin > 0 &&
-    //         loan.principal > 0 &&
-    //         loan.collateral > 0 &&
-    //         loan.maxLiquidatable > 0 &&
-    //         loan.maxSeizable > 0;
-    // }
 
     function checkUpkeep(bytes calldata checkData)
         external
